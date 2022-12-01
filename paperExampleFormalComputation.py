@@ -26,14 +26,19 @@ jb1Func=tau**3*cos(tau)**3
 jb2Func=(1+tau**2)*(cos(tau)**2+2)
 jbFunc=jb1Func+exp(I*k)*jb2Func
 dtaujbFunc=diff(jbFunc,tau)
+dtaujb2Func=diff(jb2Func,tau)
+
 # DFunc=Delta(tau,k)
 DFunc=sqrt(jbFunc*conjugate(jbFunc)+jcFunc**2+jdFunc**2)
 dtauDFunc=diff(DFunc,tau)
+
+dtauDExpression=(conjugate(jbFunc)*dtaujbFunc+jbFunc*conjugate(dtaujbFunc)+2*jcFunc*dtaujcFunc+2*jdFunc*dtaujdFunc)/(2*DFunc)
 
 # dFunc=delta(tau)
 dFunc=sqrt(jcFunc**2+jdFunc**2)
 dtaudFunc=diff(dFunc,tau)
 
+dtaudExpression=(jcFunc*dtaujcFunc+jdFunc*dtaujdFunc)/dFunc
 
 vec00=Matrix([-1/sqrt(2),conjugate(jbFunc)/(sqrt(2)*DFunc),
              jcFunc/(sqrt(2)*DFunc),jdFunc/(sqrt(2)*DFunc)])
@@ -251,4 +256,42 @@ L2010=L2010.subs([(tau,0)])
 L2011=I/(sqrt(2)*DFunc**3)*(jbFunc*dtaudFunc-dFunc*dtaujbFunc)
 L2011=L2011.subs([(tau,0)])
 # L2011in=I/(E2-E1)*conjugate(vec20).dot(dtauvec11)
+
+##############################################3
+
+########################################dk A
+
+dkA0000=1/(4*DFunc**2)*(
+    (-I*exp(-I*k)*jb2Func*dtaujbFunc+I*exp(I*k)*conjugate(jbFunc)*dtaujb2Func-I*exp(I*k)*jb2Func*conjugate(dtaujbFunc)
+     +I*exp(-I*k)*jbFunc*dtaujb2Func))\
+    +1/(2*DFunc**4)*(conjugate(jbFunc)*dtaujbFunc-jbFunc*conjugate(dtaujbFunc))*jb1Func*jb2Func*sin(k)
+
+
+# dkA000in=diff(A0000,k)
+
+dkA1010=0
+
+dkA1011=1/(dFunc**2*DFunc**3)*(I*exp(I*k)*jb2Func*DFunc**2+jbFunc*jb1Func*jb2Func*sin(k))*(jcFunc*dtaujdFunc-jdFunc*dtaujcFunc)
+
+# dkA1011in=diff(A1011,k)
+
+dkA1110=1/(dFunc**2*DFunc**3)*(-I*exp(-I*k)*jb2Func*DFunc**2+conjugate(jbFunc)*jb1Func*jb2Func*sin(k))*(-jcFunc*dtaujdFunc+jdFunc*dtaujcFunc)
+
+# dkA1110in=diff(A1110,k)
+
+
+dkA1111=1/(2*DFunc**2)*(I*exp(I*k)*jb2Func*conjugate(dtaujbFunc)-I*exp(-I*k)*jbFunc*dtaujb2Func
+                        +I*exp(-I*k)*jb2Func*dtaujbFunc-I*exp(I*k)*conjugate(jbFunc)*dtaujb2Func)\
+    +1/(DFunc**4)*(jbFunc*conjugate(dtaujbFunc)-conjugate(jbFunc)*dtaujbFunc)*jb1Func*jb2Func*sin(k)
+
+
+# dkA1111in=diff(A1111,k)
+
+
+dkA2020=1/(4*DFunc**2)*(
+    (-I*exp(-I*k)*jb2Func*dtaujbFunc+I*exp(I*k)*conjugate(jbFunc)*dtaujb2Func-I*exp(I*k)*jb2Func*conjugate(dtaujbFunc)
+     +I*exp(-I*k)*jbFunc*dtaujb2Func))\
+    +1/(2*DFunc**4)*(conjugate(jbFunc)*dtaujbFunc-jbFunc*conjugate(dtaujbFunc))*jb1Func*jb2Func*sin(k)
+
+# dkA2020in=diff(A2020,k)
 
