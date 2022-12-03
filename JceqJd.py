@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.linalg import expm
 from multiprocessing import Pool
-
+from datetime import datetime
+from pathlib import Path
 
 r=1
 theta0=np.pi/3
@@ -252,3 +253,278 @@ def Theta0(k,tau):
     return GMat(k,tau)+SMat(k,tau)-T*FMat(k,tau)
 
 
+Q=30
+M=10
+J=10
+
+N=50#momentum values
+kValsAll=np.array([2*np.pi/N*n for n in range(0,N)])
+
+def tauFunction(q,m,j):
+    return 1/Q*q+1/(Q*M)*m+1/(Q*M*J)*j
+
+def Aexp(nqmj):
+    """
+
+    :param nqmj:
+    :return:
+    """
+    n,q,m,j=nqmj
+    k=kValsAll[n]
+    tauTmp=tauFunction(q,m,j)
+    ATmp=AMat(k,tauTmp)
+    return [n,q,m,j,expm(ATmp/(Q*M*J))]
+
+#AExpTensor holds the exponentials of A
+
+AExpTensor=np.zeros((N,Q,M,J,4,4),dtype=complex)
+
+inIndsAExp=[[n,q,m,j] for n in range(0,N) for q in range(0,Q) for m in range(0,M) for j in range(1,J+1)]
+
+procNum=48
+tAExpStart=datetime.now()
+
+pool0=Pool(procNum)
+retAEx=pool0.map(Aexp,inIndsAExp)
+
+tAExpEnd=datetime.now()
+
+print("A exp time: ",tAExpEnd-tAExpStart)
+
+for item in retAEx:
+    n,q,m,j,AExpTmp=item
+    jm1=j-1
+    AExpTensor[n,q,m,jm1,:,:]=AExpTmp
+
+def VMat(nqm):
+    n,q,m=nqm
+    retMat=np.eye(4,dtype=complex)
+    for jm1 in range(0,J)[::-1]:
+        retMat=retMat@AExpTensor[n,q,m,jm1,:,:]
+
+    return [n,q,m,retMat]
+
+
+VTensor=np.zeros((N,Q,M,4,4),dtype=complex)
+inVinds=[[n,q,m] for n in range(0,N) for q in range(0,Q) for m in range(0,M)]
+
+procNum=48
+
+tVProdStart=datetime.now()
+pool1=Pool(procNum)
+retVProds=pool1.map(VMat,inVinds)
+tVProdEnd=datetime.now()
+
+print("V prods time: ",tVProdEnd-tVProdStart)
+
+for item in retVProds:
+    n,q,m,VTmp=item
+    VTensor[n,q,m,:,:]=VTmp
+
+WTensor=np.zeros((N,Q,4,4),dtype=complex)
+
+def Wk(n):
+    WkTensor=np.zeros((Q,4,4),dtype=complex)
+    WkTensor[0,:,:]=np.eye(4)
+    for q in range(1,Q):
+        prodTmp=np.copy(WkTensor[q-1,:,:])
+        for m in range(0,M):
+            prodTmp=VTensor[n,q-1,m,:,:]@prodTmp
+        WkTensor[q,:,:]=np.copy(prodTmp)
+    return [n,WkTensor]
+
+
+tWkTensorStart=datetime.now()
+procNum=48
+pool2=Pool(procNum)
+retWk=pool2.map(Wk,range(0,N))
+
+tWkTensorEnd=datetime.now()
+print("Wk tensor time: ", tWkTensorEnd-tWkTensorStart)
+
+for item in retWk:
+    n,WkTensor=item
+    WTensor[n,:,:,:]=np.copy(WkTensor)
+
+
+UTensor=np.zeros((N,Q,M,4,4),dtype=complex)
+
+#initialize for m=0
+for n in range(0,N):
+    for q in range(0,Q):
+        UTensor[n,q,0,:,:]=np.eye(4)
+
+#initialize for m>0
+
+def oneU(nqm):
+    #m=1,2,...,M-1
+    n,q,m=nqm
+    prodTmp=np.copy(WTensor[n,q,:,:])
+    for j in range(0,m):
+        prodTmp=VTensor[n,q,j,:,:]@prodTmp
+    return [n,q,m,prodTmp]
+
+
+
+inUinds=[[n,q,m] for n in range(0,N) for q in range(0,Q) for m in range(1,M)]
+
+procNum=48
+pool3=Pool(procNum)
+tOneUStart=datetime.now()
+retU=pool3.map(oneU,inUinds)
+tOneUEnd=datetime.now()
+
+print("U time: ",tOneUEnd-tOneUStart)
+for item in retU:
+    n,q,m,prodTmp=item
+    UTensor[n,q,m,:,:]=np.copy(prodTmp)
+
+
+PTensor=np.zeros((N,Q,M,4,4),dtype=complex)
+
+def oneP(nqm):
+    n,q,m=nqm
+    kTmp=kValsAll[n]
+    Theta0Mat=Theta0(kTmp,1/Q*q+1/(Q*M)*m)
+    U0Tmp=UTensor[n,q,m,:,:]
+
+    prodTmp=np.conj(U0Tmp.T)@Theta0Mat@U0Tmp
+
+    return [n,q,m,prodTmp]
+
+
+inPinds=[[n,q,m] for n in range(0,N) for q in range(0,Q) for m in range(0,M)]
+tPStart=datetime.now()
+procNum=48
+pool4=Pool(procNum)
+retP=pool4.map(oneP,inPinds)
+
+tPEnd=datetime.now()
+print("P time: ",tPEnd-tPStart)
+
+for item in retP:
+    n,q,m,prodTmp=item
+    PTensor[n,q,m,:,:]=prodTmp
+
+
+#the  integral of matrix p on time grid points q=0,1,...,Q
+intPTensor=np.zeros((N,Q+1,4,4),dtype=complex)
+
+def oneIntP(nq):
+    # q =0,1,...,Q
+    n,q=nq
+    #q=0
+    if q==0:
+        return [n,q,np.zeros((4,4),dtype=complex)]
+    #q>0
+    sumTmp=np.zeros((4,4),dtype=complex)
+    for m in range(0,M):
+        sumTmp=sumTmp+PTensor[n,q-1,m,:,:]*1/(Q*M)
+
+    return [n,q,sumTmp]
+
+inIntPInds=[[n,q] for n in range(0,N) for q in range(0,Q+1)]
+procNum=48
+pool5=Pool(procNum)
+tIntPStart=datetime.now()
+retIntP=pool5.map(oneIntP,inIntPInds)
+tIntPEnd=datetime.now()
+print("int P time: ",tIntPEnd-tIntPStart)
+for item in retIntP:
+    n,q,sumTmp=item
+    intPTensor[n,q,:,:]=sumTmp
+#integral of F at each time grid q=0,1,...,Q
+
+deltaDTensor=np.zeros((N,Q+1,4,4),dtype=complex)
+
+def sumF(nq):
+    #q>=1
+    n,q,=nq
+    kTmp=kValsAll[n]
+    sumTmp=np.zeros((4,4),dtype=complex)
+    for m in range(0,M):
+        sumTmp=sumTmp+FMat(kTmp,1/Q*(q-1)+1/(Q*M)*m)*1/(Q*M)
+    return [n,q,sumTmp]
+
+
+indeltaDInds=[[n,q] for n in range(0,N) for q in range(1,Q+1)]
+procNum=48
+pool6=Pool(procNum)
+tSumFStart=datetime.now()
+retSumF=pool6.map(sumF,indeltaDInds)
+tSumFEnd=datetime.now()
+print("sum F time: ",tSumFEnd-tSumFStart)
+for item in retSumF:
+    n,q,sumTmp=item
+    deltaDTensor[n,q,:,:]=sumTmp
+
+#initial coefficients
+
+cTensor=np.ones((N,4),dtype=complex)
+cTensor[:,0]*=-2
+#norm
+nm=np.sqrt(np.real(np.sum(np.conj(cTensor)*cTensor)))
+
+cTensor/=nm
+
+####################
+
+#cumulative integral of P
+cumulativeP=np.zeros((N,Q+1,4,4),dtype=complex)
+tCMPStart=datetime.now()
+for n in range(0,N):
+    sumPTmp=np.copy(intPTensor[n,0,:,:])
+    cumulativeP[n,0,:,:]=np.copy(sumPTmp)
+    for q in range(1,Q+1):
+        sumPTmp+=intPTensor[n,q,:,:]
+        cumulativeP[n,q,:,:]=np.copy(sumPTmp)
+tCMPEnd=datetime.now()
+print("cumulative P time: ",tCMPEnd-tCMPStart)
+#cumulative integral of F
+
+cumulativeF=np.zeros((N,Q+1,4,4),dtype=complex)
+tCMFStart=datetime.now()
+for n in range(0,N):
+    sumdDTmp=np.copy(deltaDTensor[n,0,:,:])
+    cumulativeF[n,0,:,:]=np.copy(sumdDTmp)
+    for q in range(1,Q+1):
+        sumdDTmp+=deltaDTensor[n,q,:,:]
+        cumulativeF[n,q,:,:]=np.copy(sumdDTmp)
+
+tCMFEnd=datetime.now()
+
+print("cumulative F time: ",tCMFEnd-tCMFStart)
+
+###############
+positionTopologicalTensor=np.zeros((N,Q+1))
+
+for n in range(0,N):
+    cTmp=cTensor[n,:]
+    for q in range(0,Q+1):
+        prodTmp=np.conj(cTmp).dot(cumulativeP[n,q,:,:]).dot(cTmp)
+        positionTopologicalTensor[n,q]=np.real(prodTmp)
+
+positionTopologicalAtEachInstant=np.sum(positionTopologicalTensor,axis=0)
+
+
+ibcTensor=np.zeros((N,Q+1))
+for n in range(0,N):
+    cTmp=cTensor[n,:]
+    kTmp=kValsAll[n]
+    LTmp=LMat(kTmp,0)
+    for q in range(0,Q+1):
+        ibcTmp=-2*np.real(np.conj(cTmp).dot(cumulativeF[n,q,:,:]).dot(LTmp).dot(cTmp))
+        ibcTensor[n,q]=ibcTmp
+
+
+ibcAtEachInstant=np.sum(ibcTensor,axis=0)
+
+outDir="./JceqJd/"
+
+Path(outDir).mkdir(parents=True,exist_ok=True)
+
+outData=np.array([positionTopologicalAtEachInstant,ibcAtEachInstant]).T
+
+pdOut=pd.DataFrame(data=outData,columns=["topological","ibc"])
+
+pdOut.to_csv(outDir+"position.csv",index=False)
