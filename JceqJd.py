@@ -294,7 +294,7 @@ print("A exp time: ",tAExpEnd-tAExpStart)
 for item in retAEx:
     n,q,m,j,AExpTmp=item
     jm1=j-1
-    AExpTensor[n,q,m,jm1,:,:]=AExpTmp
+    AExpTensor[n,q,m,jm1,:,:]=np.copy(AExpTmp)
 
 def VMat(nqm):
     n,q,m=nqm
@@ -319,7 +319,7 @@ print("V prods time: ",tVProdEnd-tVProdStart)
 
 for item in retVProds:
     n,q,m,VTmp=item
-    VTensor[n,q,m,:,:]=VTmp
+    VTensor[n,q,m,:,:]=np.copy(VTmp)
 
 WTensor=np.zeros((N,Q,4,4),dtype=complex)
 
@@ -352,7 +352,7 @@ UTensor=np.zeros((N,Q,M,4,4),dtype=complex)
 #initialize for m=0
 for n in range(0,N):
     for q in range(0,Q):
-        UTensor[n,q,0,:,:]=np.eye(4)
+        UTensor[n,q,0,:,:]=np.copy(WTensor[n,q,:,:])
 
 #initialize for m>0
 
@@ -404,7 +404,7 @@ print("P time: ",tPEnd-tPStart)
 
 for item in retP:
     n,q,m,prodTmp=item
-    PTensor[n,q,m,:,:]=prodTmp
+    PTensor[n,q,m,:,:]=np.copy(prodTmp)
 
 
 #the  integral of matrix p on time grid points q=0,1,...,Q
@@ -432,7 +432,7 @@ tIntPEnd=datetime.now()
 print("int P time: ",tIntPEnd-tIntPStart)
 for item in retIntP:
     n,q,sumTmp=item
-    intPTensor[n,q,:,:]=sumTmp
+    intPTensor[n,q,:,:]=np.copy(sumTmp)
 #integral of F at each time grid q=0,1,...,Q
 
 deltaDTensor=np.zeros((N,Q+1,4,4),dtype=complex)
@@ -456,12 +456,12 @@ tSumFEnd=datetime.now()
 print("sum F time: ",tSumFEnd-tSumFStart)
 for item in retSumF:
     n,q,sumTmp=item
-    deltaDTensor[n,q,:,:]=sumTmp
-
+    deltaDTensor[n,q,:,:]=np.copy(sumTmp)
 #initial coefficients
 
 cTensor=np.ones((N,4),dtype=complex)
 cTensor[:,0]*=-2
+cTensor[:,1:]*=0
 #norm
 nm=np.sqrt(np.real(np.sum(np.conj(cTensor)*cTensor)))
 
