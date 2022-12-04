@@ -172,7 +172,7 @@ pool1=Pool(procNum)
 tEvoStart=datetime.now()
 retVecsAll=pool1.map(evolution,range(0,N))
 tEvoEnd=datetime.now()
-
+print("evolution time: ",tEvoEnd-tEvoStart)
 for item in retVecsAll:
     n,vecsAll=item
     #vecsAll corresponds to 0,1,...,QQ
