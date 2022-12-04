@@ -463,8 +463,8 @@ cTensor=np.ones((N,4),dtype=complex)
 cTensor[:,0]*=-2
 cTensor[:,1:]*=0
 #norm
-nm=np.sqrt(np.real(np.sum(np.conj(cTensor)*cTensor)))
-
+# nm=np.sqrt(np.real(np.sum(np.conj(cTensor)*cTensor)))
+nm=np.linalg.norm(cTensor,"fro")
 cTensor/=nm
 
 ####################
