@@ -4,14 +4,15 @@ from scipy.linalg import expm
 from multiprocessing import Pool
 from datetime import datetime
 from pathlib import Path
-
-#this script computes drift without resorting to ibc expressions
+import matplotlib.pyplot as plt
+import scipy.integrate as integrate
+#this script check the correctness of numerical computations
 
 r=1
 
 alpha1=np.pi/4
 alpha2=np.pi*np.sqrt(2)
-T=1e3
+T=2*1e3
 
 name="example6"
 
@@ -412,7 +413,37 @@ tsTensorEnd=datetime.now()
 
 print("sTensor time: ",tsTensorEnd-tsTensorStart)
 
-
+######################################verify integration of energy
+# n1=2
+# n=23
+# q=int(Q/2)
+# m=0
+# j=0
+#
+# def continuousEn1(tau):
+#     k = kValsAll[n]
+#     # jbFunc = jbExpression(k, tau)
+#     # dtaujbFunc = dtaujbExpression(k, tau)
+#     # jcFunc = jcExpression(tau)
+#     # dtaujcFunc = dtaujcExpression(tau)
+#     # jdFunc = jdExpression(tau)
+#     # dtaujdFunc = dtaujdExpression(tau)
+#     # DFunc = DeltaExpression(k, tau)
+#     # dtauDFunc = dtauDeltaExpression(k, tau)
+#     DFunc = DeltaExpression(k, tau)
+#     if n1 == 0:
+#         E0 = -DFunc
+#         return E0
+#     elif n1 == 1:
+#         E1 = 0
+#         return E1
+#
+#     else:
+#         E2 = DFunc
+#         return E2
+# tmpIntVal=integrate.quad(lambda tau:continuousEn1(tau),0,1/Q*q)[0]
+# print("difference of integral of energy: "+str(tmpIntVal-sTensor[n1,n,q,0]))
+#########################################end of verification of energy
 def oneB(nqm):
     n,q,m=nqm
     k=kValsAll[n]
@@ -482,6 +513,12 @@ for item in retinBTensor:
 tBTensorEnd=datetime.now()
 
 print("BTensor time: ",tBTensorEnd-tBTensorStart)
+####check whether B is skew-Hermitian
+# n=34
+# q=int(Q-1)
+# m=0
+# BTmp=BTensor[n,q,m,:,:]
+# print("diff of matrices is: "+str(BTmp+np.conj(BTmp).T))
 ########################################## 2 end
 
 #########################################
@@ -489,13 +526,158 @@ print("BTensor time: ",tBTensorEnd-tBTensorStart)
 tTheta1TensorStart=datetime.now()
 Theta1Tensor=np.zeros((N,Q+1,4,4),dtype=complex)
 
-for n in range(0,N):
-    for q in range(1,Q+1):
-        sumTmp=np.zeros((4,4),dtype=complex)
-        for m in range(0,M):
-            sumTmp+=np.conj(U0Tensor[n,q-1,m,:,:]).T@BTensor[n,q-1,m,:,:]@U0Tensor[n,q-1,m,:,:]
-        sumTmp*=1/(Q*M)
-        Theta1Tensor[n,q,:,:]=np.copy(sumTmp)
+# for n in range(0,N):
+#     for q in range(1,Q+1):
+#         sumTmp=np.zeros((4,4),dtype=complex)
+#         for m in range(0,M):
+#             sumTmp+=np.conj(U0Tensor[n,q-1,m,:,:]).T@BTensor[n,q-1,m,:,:]@U0Tensor[n,q-1,m,:,:]
+#         sumTmp*=1/(Q*M)
+#         Theta1Tensor[n,q,:,:]=np.copy(sumTmp)
+
+
+
+def Theta1MatAtnq(nq):
+    """
+
+    :param n: k
+    :param q: time step number
+    :return: Theta_{1}(k,q)
+    """
+    n,q=nq
+    k=kValsAll[n]
+    tauq = tauFunction(q, 0, 0)
+    tauqMinus1=tauFunction(q-1,0,0)
+    vec00Tmpq = vec00(k, tauq)
+    vec10Tmpq = vec10(k, tauq)
+    vec11Tmpq = vec11(k, tauq)
+    vec20Tmpq = vec20(k, tauq)
+    dtauvec00Tmpq = dtauvec00(k, tauq)
+    dtauvec10Tmpq = dtauvec10(k, tauq)
+    dtauvec11Tmpq = dtauvec11(k, tauq)
+    dtauvec20Tmpq = dtauvec20(k, tauq)
+
+    vec00TmpqMinus1=vec00(k,tauqMinus1)
+    vec10TmpqMinus1=vec10(k,tauqMinus1)
+    vec11TmpqMinus1=vec11(k,tauqMinus1)
+    vec20TmpqMinus1=vec20(k,tauqMinus1)
+    dtauvec00TmpqMinus1=dtauvec00(k,tauqMinus1)
+    dtauvec10TmpqMinus1=dtauvec10(k,tauqMinus1)
+    dtauvec11TmpqMinus1=dtauvec11(k,tauqMinus1)
+    dtauvec20TmpqMinus1=dtauvec20(k,tauqMinus1)
+
+    p0010q=np.conj(vec00Tmpq).dot(dtauvec10Tmpq)
+    p0011q=np.conj(vec00Tmpq).dot(dtauvec11Tmpq)
+    p0020q=np.conj(vec00Tmpq).dot(dtauvec20Tmpq)
+    p1000q=np.conj(vec10Tmpq).dot(dtauvec00Tmpq)
+    p1020q=np.conj(vec10Tmpq).dot(dtauvec20Tmpq)
+    p1100q=np.conj(vec11Tmpq).dot(dtauvec00Tmpq)
+    p1120q=np.conj(vec11Tmpq).dot(dtauvec20Tmpq)
+    p2000q=np.conj(vec20Tmpq).dot(dtauvec00Tmpq)
+    p2010q=np.conj(vec20Tmpq).dot(dtauvec10Tmpq)
+    p2011q=np.conj(vec20Tmpq).dot(dtauvec11Tmpq)
+
+    p0010qMinus1=np.conj(vec00TmpqMinus1).dot(dtauvec10TmpqMinus1)
+    p0011qMinus1=np.conj(vec00TmpqMinus1).dot(dtauvec11TmpqMinus1)
+    p0020qMinus1=np.conj(vec00TmpqMinus1).dot(dtauvec20TmpqMinus1)
+    p1000qMinus1=np.conj(vec10TmpqMinus1).dot(dtauvec00TmpqMinus1)
+    p1020qMinus1=np.conj(vec10TmpqMinus1).dot(dtauvec20TmpqMinus1)
+    p1100qMinus1=np.conj(vec11TmpqMinus1).dot(dtauvec00TmpqMinus1)
+    p1120qMinus1=np.conj(vec11TmpqMinus1).dot(dtauvec20TmpqMinus1)
+    p2000qMinus1=np.conj(vec20TmpqMinus1).dot(dtauvec00TmpqMinus1)
+    p2010qMinus1=np.conj(vec20TmpqMinus1).dot(dtauvec10TmpqMinus1)
+    p2011qMinus1=np.conj(vec20TmpqMinus1).dot(dtauvec11TmpqMinus1)
+
+    U0q=U0Tensor[n,q,0,:,:]
+    U0qMinus1=U0Tensor[n,q-1,0,:,:]
+
+    U0q0000=U0q[0,0]
+    U0q1010=U0q[1,1]
+    U0q1011=U0q[1,2]
+    U0q1110=U0q[2,1]
+    U0q1111=U0q[2,2]
+    U0q2020=U0q[3,3]
+
+    U0qMinus10000=U0qMinus1[0,0]
+    U0qMinus11010=U0qMinus1[1,1]
+    U0qMinus11011=U0qMinus1[1,2]
+    U0qMinus11110=U0qMinus1[2,1]
+    U0qMinus11111=U0qMinus1[2,2]
+    U0qMinus12020=U0qMinus1[3,3]
+
+    ######
+    elem0010=1j*p0010q*U0q1010*np.conj(U0q0000)*np.exp(1j*T*(sTensor[0,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(0,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p0010qMinus1*U0qMinus11010*np.conj(U0qMinus10000)*np.exp(1j*T*(sTensor[0,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(0,n,q-1,0,0)-En1(1,n,q-1,0,0)))\
+    +1j*p0011q*U0q1110*np.conj(U0q0000)*np.exp(1j*T*(sTensor[0,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(0,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p0011q*U0qMinus11110*np.conj(U0qMinus10000)*np.exp(1j*T*(sTensor[0,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(0,n,q-1,0,0)-En1(1,n,q-1,0,0)))
+
+
+
+    elem0011=1j*p0010q*U0q1011*np.conj(U0q0000)*np.exp(1j*T*(sTensor[0,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(0,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p0010qMinus1*U0qMinus11011*np.conj(U0qMinus10000)*np.exp(1j*T*(sTensor[0,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(0,n,q-1,0,0)-En1(1,n,q-1,0,0)))\
+    +1j*p0011q*U0q1111*np.conj(U0q0000)*np.exp(1j*T*(sTensor[0,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(0,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p0011qMinus1*U0qMinus11111*np.conj(U0qMinus10000)*np.exp(1j*T*(sTensor[0,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(0,n,q-1,0,0)-En1(1,n,q-1,0,0)))
+
+    elem0020=1j*p0020q*U0q2020*np.conj(U0q0000)*np.exp(1j*T*(sTensor[0,n,q,0]-sTensor[2,n,q,0]))/(T*(En1(0,n,q,0,0)-En1(2,n,q,0,0)))\
+    -1j*p0020qMinus1*U0qMinus12020*np.conj(U0qMinus10000)*np.exp(1j*T*(sTensor[0,n,q-1,0]-sTensor[2,n,q-1,0]))/(T*(En1(0,n,q-1,0,0)-En1(2,n,q-1,0,0)))
+
+
+    elem1000=1j*p1000q*U0q0000*np.conj(U0q1010)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[0,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(0,n,q,0,0)))\
+    -1j*p1000qMinus1*U0qMinus10000*np.conj(U0qMinus11010)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[0,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(0,n,q-1,0,0)))\
+    +1j*p1100q*U0q0000*np.conj(U0q1110)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[0,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(0,n,q,0,0)))\
+    -1j*p1100qMinus1*U0qMinus10000*np.conj(U0qMinus11110)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[0,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(0,n,q-1,0,0)))
+
+
+    elem1020=1j*p1020q*U0q2020*np.conj(U0q1010)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[2,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(2,n,q,0,0)))\
+    -1j*p1020qMinus1*U0qMinus12020*np.conj(U0qMinus11010)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[2,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(2,n,q-1,0,0)))\
+    +1j*p1120q*U0q2020*np.conj(U0q1110)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[2,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(2,n,q,0,0)))\
+    -1j*p1120qMinus1*U0qMinus12020*np.conj(U0qMinus11110)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[2,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(2,n,q-1,0,0)))
+
+
+    elem1100=1j*p1000q*U0q0000*np.conj(U0q1011)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[0,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(0,n,q,0,0)))\
+    -1j*p1000qMinus1*U0qMinus10000*np.conj(U0qMinus11011)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[0,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(0,n,q-1,0,0)))\
+    +1j*p1100q*U0q0000*np.conj(U0q1111)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[0,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(0,n,q,0,0)))\
+    -1j*p1100qMinus1*U0qMinus10000*np.conj(U0qMinus11111)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[0,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(0,n,q-1,0,0)))
+
+
+    elem1120=1j*p1020q*U0q2020*np.conj(U0q1011)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[2,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(2,n,q,0,0)))\
+    -1j*p1020qMinus1*U0qMinus12020*np.conj(U0qMinus11011)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[2,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(2,n,q-1,0,0)))\
+    +1j*p1120q*U0q2020*np.conj(U0q1111)*np.exp(1j*T*(sTensor[1,n,q,0]-sTensor[2,n,q,0]))/(T*(En1(1,n,q,0,0)-En1(2,n,q,0,0)))\
+    -1j*p1120qMinus1*U0qMinus12020*np.conj(U0qMinus11111)*np.exp(1j*T*(sTensor[1,n,q-1,0]-sTensor[2,n,q-1,0]))/(T*(En1(1,n,q-1,0,0)-En1(2,n,q-1,0,0)))
+
+
+    elem2000=1j*p2000q*U0q0000*np.conj(U0q2020)*np.exp(1j*T*(sTensor[2,n,q,0]-sTensor[0,n,q,0]))/(T*(En1(2,n,q,0,0)-En1(0,n,q,0,0)))\
+    -1j*p2000qMinus1*U0qMinus10000*np.conj(U0qMinus12020)*np.exp(1j*T*(sTensor[2,n,q-1,0]-sTensor[0,n,q-1,0]))/(T*(En1(2,n,q-1,0,0)-En1(0,n,q-1,0,0)))
+
+    elem2010=1j*p2010q*U0q1010*np.conj(U0q2020)*np.exp(1j*T*(sTensor[2,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(2,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p2010qMinus1*U0qMinus11010*np.conj(U0qMinus12020)*np.exp(1j*T*(sTensor[2,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(2,n,q-1,0,0)-En1(1,n,q-1,0,0)))\
+    +1j*p2011q*U0q1110*np.conj(U0q2020)*np.exp(1j*T*(sTensor[2,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(2,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p2011qMinus1*U0qMinus11110*np.conj(U0qMinus12020)*np.exp(1j*T*(sTensor[2,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(2,n,q-1,0,0)-En1(1,n,q-1,0,0)))
+
+
+    elem2011=1j*p2010q*U0q1011*np.conj(U0q2020)*np.exp(1j*T*(sTensor[2,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(2,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p2010qMinus1*U0qMinus11011*np.conj(U0qMinus12020)*np.exp(1j*T*(sTensor[2,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(2,n,q-1,0,0)-En1(1,n,q-1,0,0)))\
+    +1j*p2011q*U0q1111*np.conj(U0q2020)*np.exp(1j*T*(sTensor[2,n,q,0]-sTensor[1,n,q,0]))/(T*(En1(2,n,q,0,0)-En1(1,n,q,0,0)))\
+    -1j*p2011qMinus1*U0qMinus11111*np.conj(U0qMinus12020)*np.exp(1j*T*(sTensor[2,n,q-1,0]-sTensor[1,n,q-1,0]))/(T*(En1(2,n,q-1,0,0)-En1(1,n,q-1,0,0)))
+
+    retMat=np.array([
+        [0,elem0010,elem0011,elem0020],
+        [elem1000,0,0,elem1020],
+        [elem1100,0,0,elem1120],
+        [elem2000,elem2010,elem2011,0]
+    ])
+
+
+    return [n,q,retMat]
+
+inTheta1Inds=[[n,q] for n in range(0,N) for q in range(1,Q+1)]
+procNum=48
+pool4=Pool(procNum)
+retTheta1=pool4.map(Theta1MatAtnq,inTheta1Inds)
+for item in retTheta1:
+    n,q,retMat=item
+    Theta1Tensor[n,q,:,:]=np.copy(retMat)
+
+
 
 tTheta1TensorEnd=datetime.now()
 
@@ -518,6 +700,15 @@ for n in range(0,N):
 
 tU1TensorEnd=datetime.now()
 print("U1Tensor time: ",tU1TensorEnd-tU1TensorStart)
+#check if U1 satisfies differential equation
+
+q=int(Q/2)
+n=17
+LHS=(U1Tensor[n,q+1,:,:]-U1Tensor[n,q-1,:,:])/(2/Q)
+tau=tauFunction(q,0,0)
+RHS=AMat(kValsAll[n],tau)@U1Tensor[n,q,:,:]+BTensor[n,q,0,:,:]@U0Tensor[n,q,0,:,:]
+print("diff of LHS and RHS matrices: "+str(RHS-LHS))
+
 ######################## 4 end
 ############################
 #5.
@@ -544,13 +735,6 @@ tcEnd=datetime.now()
 
 
 print("c time: ",tcEnd-tcStart)
-q0=int(Q)
-cAtq=c0Tensor[:,q0,:]+c1Tensor[:,q0,:]
-# cCrossAtq=np.conj(c0Tensor[:,q0,:])*c1Tensor[:,q0,:]+c0Tensor[:,q0,:]*np.conj(c1Tensor[:,q0,:])
-# print(np.sum(cCrossAtq))
-c1Atq=c1Tensor[:,q0,:]
-print(np.sum(np.conj(c1Atq)*c1Atq))
-print(np.sum(np.conj(cAtq)*cAtq))
 ################# 5 end
 
 ##########################
@@ -639,11 +823,6 @@ tToRealEnd=datetime.now()
 
 print("to real time: ",tToRealEnd-tToRealStart)
 
-q0=int(Q)
-# realAtq=xiTensor[0,:,:,q0]+xiTensor[1,:,:,q0]
-# print(np.sum(np.conj(realAtq)*realAtq))
-# momentumAtq=solTensor[0,:,:,q0]+solTensor[1,:,:,q0]
-# print(np.sum(np.conj(momentumAtq)*momentumAtq))
 ###########################7 end
 
 #################################
@@ -664,6 +843,15 @@ for r in range(0,4):
     xi0Startxi1+=np.conj(xiTensor[0,r,:,:])*xiTensor[1,r,:,:]
 
 
+finalAmplitude=xiTensor[0,:,:,-1]+xiTensor[1,:,:,-1]
+finalAbs2=np.abs(finalAmplitude[0,:])**2+np.abs(finalAmplitude[1,:])**2+np.abs(finalAmplitude[2,:])**2+np.abs(finalAmplitude[3,:])**2
+outDir="./"+name+"Evo/"
+plt.figure()
+plt.plot(range(0,N),finalAbs2,color="black")
+plt.title("verification")
+plt.savefig(outDir+"verification.png")
+plt.close()
+
 z0All=posVals.dot(xi0Squared)
 
 z1All=posVals.dot(xi0Startxi1)
@@ -676,7 +864,7 @@ z1Drift=[elem-z1Sum[0] for elem in z1Sum]
 
 
 outData=np.array([z0Drift,z1Drift]).T
-outDir="./"+name+"Evo/"
+
 Path(outDir).mkdir(parents=True,exist_ok=True)
 
 pdOut=pd.DataFrame(data=outData,columns=["z0Drift","z1Drift"])
